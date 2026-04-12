@@ -4,7 +4,8 @@
   "description": "API Serverless premium para buscar y extraer audio",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "echo 'No se requiere build'"
   },
   "dependencies": {
     "cors": "^2.8.5",
