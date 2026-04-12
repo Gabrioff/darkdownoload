@@ -3,6 +3,7 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const fs = require('fs');
 const https = require('https');
+const path = require('path');
 
 const app = express();
 app.use(cors()); // Permite peticiones desde tu Frontend
@@ -35,8 +36,10 @@ async function ensureYtDlp() {
     });
 }
 
-// Endpoint base
-app.get('/', (req, res) => res.send('API de MusicBot Funcionando 🚀'));
+// Endpoint base: Mostrar la interfaz visual bonita
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // ENDPOINT: Búsqueda (Texto)
 app.get('/api/search', async (req, res) => {
