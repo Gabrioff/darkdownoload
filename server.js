@@ -12,7 +12,7 @@ const YTDLP_PATH = '/tmp/yt-dlp';
 let isDownloading = false;
 let downloadPromise = null;
 
-// INSTALADOR
+// INSTALADOR (Solo se usará para Búsquedas, ya no para descargas)
 async function ensureYtDlp() {
     if (fs.existsSync(YTDLP_PATH)) {
         const stats = fs.statSync(YTDLP_PATH);
@@ -40,38 +40,94 @@ function runYtDlp(args) {
     });
 }
 
-// APIs DE RESPALDO (Carrera)
+// =========================================================
+// EL ESCUDO MULTI-API (SISTEMA DE CARRERA PARA DESCARGAS)
+// =========================================================
 const PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
     "https://pipedapi.smnz.de",
     "https://api.piped.projectsegfau.lt"
 ];
 
+const INVIDIOUS_INSTANCES = [
+    "https://vid.puffyan.us",
+    "https://inv.tux.pizza"
+];
+
 async function getFastestStream(videoId, isAudio) {
-    const pipedPromises = PIPED_INSTANCES.map(instance => 
-        new Promise(async (resolve, reject) => {
+    const promises = [];
+
+    // 1. Instancias Piped
+    PIPED_INSTANCES.forEach(instance => {
+        promises.push(new Promise(async (resolve, reject) => {
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 4000);
+                const timeoutId = setTimeout(() => controller.abort(), 6000);
                 const res = await fetch(`${instance}/streams/${videoId}`, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 if (res.ok) {
                     const data = await res.json();
                     if (isAudio && data.audioStreams?.length > 0) {
                         const bestAudio = data.audioStreams.find(s => s.format === "M4A") || data.audioStreams[0];
-                        return resolve(bestAudio.url);
+                        if (bestAudio.url) return resolve(bestAudio.url);
                     }
                     if (!isAudio && data.videoStreams?.length > 0) {
                         const bestVideo = data.videoStreams.find(s => !s.videoOnly) || data.videoStreams[0];
-                        return resolve(bestVideo.url);
+                        if (bestVideo.url) return resolve(bestVideo.url);
                     }
                 }
                 reject();
             } catch(e) { reject(); }
-        })
-    );
-    try { return await Promise.any(pipedPromises); } 
-    catch (error) { return null; }
+        }));
+    });
+
+    // 2. API Oculta de Respaldo (Muy rápida y sin bloqueos)
+    promises.push(new Promise(async (resolve, reject) => {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const res = await fetch("https://co.wuk.sh/api/json", {
+                method: "POST",
+                headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    url: `https://www.youtube.com/watch?v=${videoId}`,
+                    isAudioOnly: isAudio,
+                    aFormat: "mp3"
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            const data = await res.json();
+            if (data && data.url) resolve(data.url);
+            else reject();
+        } catch(e) { reject(); }
+    }));
+
+    // 3. Instancias Invidious (Modo Proxy Local)
+    INVIDIOUS_INSTANCES.forEach(instance => {
+        promises.push(new Promise(async (resolve, reject) => {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const res = await fetch(`${instance}/api/v1/videos/${videoId}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (res.ok) {
+                    // Crea un enlace proxy directo que burla la IP de YouTube
+                    resolve(`${instance}/latest_version?id=${videoId}&itag=${isAudio ? '140' : '22'}&local=true`);
+                } else {
+                    reject();
+                }
+            } catch(e) { reject(); }
+        }));
+    });
+
+    try {
+        // Ejecuta las 6 conexiones a la vez, la primera en dar respuesta GANA.
+        return await Promise.any(promises); 
+    } 
+    catch (error) { 
+        return null; 
+    }
 }
 
 // MOSTRAR WEB
@@ -99,47 +155,36 @@ app.get('/api/search', async (req, res) => {
         }));
         res.json(results);
     } catch (error) {
-        res.status(500).json({ error: "Error en el servidor" });
+        // Fallback de búsqueda si yt-dlp también es bloqueado
+        res.status(500).json({ error: "Servidores ocupados temporalmente." });
     }
 });
 
-// DESCARGA DE AUDIO (Redirección Automática)
+// DESCARGA DE AUDIO (Redirección Instántanea y Segura)
 app.get('/api/download-audio', async (req, res) => {
     const videoId = req.query.v;
-    if (!videoId) return res.status(400).send("Falta ID");
+    if (!videoId) return res.status(400).send("Falta ID del video");
 
-    try {
-        await ensureYtDlp();
-        const stdout = await runYtDlp(['-f', 'bestaudio', '--get-url', `https://www.youtube.com/watch?v=${videoId}`]);
-        const url = stdout.trim().split('\n')[0];
-        if (url && url.startsWith('http')) return res.redirect(302, url);
-        throw new Error("URL inválida");
-    } catch (error) {
-        const fallbackUrl = await getFastestStream(videoId, true);
-        if (fallbackUrl) return res.redirect(302, fallbackUrl);
-        res.status(500).send("YouTube bloqueó temporalmente la descarga. Intenta de nuevo más tarde.");
-    }
+    const url = await getFastestStream(videoId, true);
+    if (url) return res.redirect(302, url);
+    
+    // Si los 6 servidores fallan a la vez (muy raro)
+    res.status(500).send("Los servidores están saturados en este momento. Intenta de nuevo en un par de minutos.");
 });
 
-// DESCARGA DE VIDEO (Redirección Automática)
+// DESCARGA DE VIDEO (Redirección Instántanea y Segura)
 app.get('/api/download-video', async (req, res) => {
     const videoId = req.query.v;
-    if (!videoId) return res.status(400).send("Falta ID");
+    if (!videoId) return res.status(400).send("Falta ID del video");
 
-    try {
-        await ensureYtDlp();
-        const stdout = await runYtDlp(['-f', 'best', '--get-url', `https://www.youtube.com/watch?v=${videoId}`]);
-        const url = stdout.trim().split('\n')[0];
-        if (url && url.startsWith('http')) return res.redirect(302, url);
-        throw new Error("URL inválida");
-    } catch (error) {
-        const fallbackUrl = await getFastestStream(videoId, false);
-        if (fallbackUrl) return res.redirect(302, fallbackUrl);
-        res.status(500).send("YouTube bloqueó temporalmente la descarga. Intenta de nuevo más tarde.");
-    }
+    const url = await getFastestStream(videoId, false);
+    if (url) return res.redirect(302, url);
+    
+    // Si los 6 servidores fallan a la vez (muy raro)
+    res.status(500).send("Los servidores están saturados en este momento. Intenta de nuevo en un par de minutos.");
 });
 
-// SHAZAM
+// SHAZAM (Reconocimiento de audio)
 app.post('/api/recognize', async (req, res) => {
     try {
         const { audioBase64 } = req.body;
