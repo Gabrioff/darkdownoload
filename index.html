@@ -25,12 +25,6 @@
                     animation: {
                         'float': 'float 3s ease-in-out infinite',
                         'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    },
-                    keyframes: {
-                        'float': {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-5px)' }
-                        }
                     }
                 }
             }
@@ -108,7 +102,7 @@
         <!-- Loading State -->
         <div id="loadingState" class="hidden flex-col items-center justify-center py-12 max-w-2xl mx-auto">
             <div class="w-12 h-12 border-4 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin mb-4"></div>
-            <p id="loadingText" class="text-brand-primary font-medium animate-pulse text-sm">Procesando en el servidor...</p>
+            <p id="loadingText" class="text-brand-primary font-medium animate-pulse text-sm">Buscando en YouTube...</p>
         </div>
 
         <!-- Results Grid -->
@@ -117,7 +111,7 @@
         </div>
     </main>
 
-    <!-- Modal de Descarga Premium -->
+    <!-- Modal de Vista Previa y Descarga INSTANTÁNEO -->
     <div id="downloadModal" class="fixed inset-0 bg-brand-dark/90 backdrop-blur-md z-50 hidden flex-col items-center justify-end sm:justify-center p-0 sm:p-4 opacity-0 transition-opacity duration-300">
         <div class="glass-panel w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 transform translate-y-full sm:translate-y-10 transition-transform duration-300 shadow-2xl border-t border-white/10" id="modalContent">
             
@@ -130,16 +124,10 @@
                 </button>
             </div>
 
-            <!-- Modal Loading -->
-            <div id="modalLoading" class="flex flex-col items-center py-10">
-                <div class="w-12 h-12 border-4 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin mb-4"></div>
-                <p class="text-sm text-gray-400">Generando reproductor y enlaces...</p>
-            </div>
-
-            <!-- Modal Options (Vista Previa y Botones) -->
-            <div id="modalOptions" class="hidden flex-col w-full">
+            <!-- Opciones Visibles Instantáneamente -->
+            <div class="flex flex-col w-full">
                 
-                <!-- Reproductor de Video (Vista Previa) -->
+                <!-- Reproductor de Video -->
                 <div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-lg mb-4 bg-black/50 border border-white/10">
                     <iframe id="previewIframe" class="w-full h-full" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                 </div>
@@ -149,23 +137,18 @@
                     <p id="modalAuthor" class="text-sm text-brand-primary truncate">...</p>
                 </div>
 
-                <!-- Mensaje de Error (Por si Vercel da Timeout) -->
-                <div id="downloadError" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center p-3 rounded-lg mb-3">
-                    El servidor tardó demasiado en procesar los enlaces directos. Por favor, cierra esto e intenta de nuevo.
-                </div>
-
                 <div class="space-y-3 mt-2">
-                    <!-- Botón Audio -->
-                    <a id="btnAudio" href="#" target="_blank" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:opacity-90 text-white py-3.5 px-4 rounded-xl font-semibold flex justify-between items-center transition-all shadow-lg hidden">
+                    <!-- Botón Audio (Link directo al Backend que redirecciona) -->
+                    <a id="btnAudio" href="#" target="_blank" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:opacity-90 text-white py-3.5 px-4 rounded-xl font-semibold flex justify-between items-center transition-all shadow-lg">
                         <span class="flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                            Descargar Audio (MP3)
+                            Descargar Audio (MP3/M4A)
                         </span>
                         <svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     </a>
 
-                    <!-- Botón Video -->
-                    <a id="btnVideo" href="#" target="_blank" class="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90 text-white py-3.5 px-4 rounded-xl font-semibold flex justify-between items-center transition-all shadow-lg hidden">
+                    <!-- Botón Video (Link directo al Backend que redirecciona) -->
+                    <a id="btnVideo" href="#" target="_blank" class="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90 text-white py-3.5 px-4 rounded-xl font-semibold flex justify-between items-center transition-all shadow-lg">
                         <span class="flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                             Descargar Video (MP4)
@@ -187,7 +170,6 @@
         // ⚠️ Asegúrate de que esta sea tu URL real de Vercel ⚠️
         const BACKEND_URL = "https://darkdownoload.vercel.app";
 
-        // Inicializar Telegram WebApp
         const tg = window.Telegram.WebApp;
         tg.expand();
         
@@ -218,7 +200,7 @@
             }, 3500);
         }
 
-        // --- SISTEMA SHAZAM (GRABAR Y RECONOCER AUDIO) ---
+        // --- SISTEMA SHAZAM ---
         let mediaRecorder;
         let audioChunks = [];
 
@@ -270,7 +252,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ audioBase64: base64Audio })
                 });
-
                 const data = await response.json();
                 if (response.ok && data.title) {
                     const foundQuery = `${data.title} ${data.artist}`;
@@ -278,7 +259,7 @@
                     showToast(`¡Encontrada! ${data.title}`);
                     document.getElementById('searchForm').dispatchEvent(new Event('submit'));
                 } else {
-                    throw new Error(data.error || "No reconocida");
+                    throw new Error("No reconocida");
                 }
             } catch (error) {
                 showToast(error.message, true);
@@ -297,45 +278,34 @@
             document.getElementById('resultsGrid').innerHTML = '';
             document.getElementById('loadingState').classList.remove('hidden');
             document.getElementById('loadingState').classList.add('flex');
-            document.getElementById('loadingText').innerText = "Buscando en YouTube...";
 
             const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
             const match = query.match(ytRegex);
 
             if (match && match[1]) {
-                const videoId = match[1];
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('loadingState').classList.remove('flex');
-                openDownloadModal(videoId, "Video desde Enlace", "YouTube");
+                openDownloadModal(match[1], "Video desde Enlace", "YouTube");
                 return;
             }
 
             try {
                 const response = await fetch(`${BACKEND_URL}/api/search?q=${encodeURIComponent(query)}`);
-                if (!response.ok) throw new Error("Servidor no disponible");
-                
-                const data = await response.json();
-                const videos = data.map(i => ({
-                    id: i.id,
-                    title: i.title,
-                    author: i.uploader || i.channel,
-                    thumb: i.thumbnails && i.thumbnails.length > 0 ? i.thumbnails[i.thumbnails.length - 1].url : `https://i.ytimg.com/vi/${i.id}/mqdefault.jpg`,
-                    duration: i.duration
-                }));
+                if (!response.ok) throw new Error("Error del servidor");
+                const videos = await response.json();
                 renderResults(videos);
             } catch (error) {
                 showToast("Fallo en la búsqueda.", true);
             } finally {
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('loadingState').classList.remove('flex');
-                document.getElementById('searchInput').placeholder = "Buscar música, video o enlace...";
             }
         }
 
         function renderResults(videos) {
             const grid = document.getElementById('resultsGrid');
             grid.innerHTML = '';
-            if (videos.length === 0) {
+            if (!videos || videos.length === 0) {
                 grid.innerHTML = `<p class="col-span-full text-center text-gray-400 py-10">No se encontraron resultados.</p>`;
                 return;
             }
@@ -347,6 +317,7 @@
 
                 const card = document.createElement('div');
                 card.className = "glass-panel rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all duration-300 group cursor-pointer border border-transparent hover:border-brand-primary/30 flex flex-col";
+                // Al hacer clic, abre el modal INMEDIATAMENTE
                 card.onclick = () => openDownloadModal(video.id, safeTitle, safeAuthor);
 
                 card.innerHTML = `
@@ -365,14 +336,12 @@
             });
         }
 
-        // --- MODAL DE VISTA PREVIA Y DESCARGAS ---
-        async function openDownloadModal(videoId, title, author) {
+        // --- MODAL INSTANTÁNEO ---
+        function openDownloadModal(videoId, title, author) {
             const modal = document.getElementById('downloadModal');
             const content = document.getElementById('modalContent');
-            const loading = document.getElementById('modalLoading');
-            const options = document.getElementById('modalOptions');
-            const errorMsg = document.getElementById('downloadError');
             
+            // 1. Mostrar la ventana al instante
             modal.classList.remove('hidden');
             modal.classList.add('flex');
             setTimeout(() => {
@@ -380,67 +349,14 @@
                 content.classList.remove('translate-y-full', 'sm:translate-y-10');
             }, 10);
 
-            // Datos de la interfaz
+            // 2. Cargar textos e iframe
             document.getElementById('modalTitle').innerText = title;
             document.getElementById('modalAuthor').innerText = author;
-            errorMsg.classList.add('hidden'); // Ocultar error inicial
-
-            // Inyectar el reproductor de YouTube
             document.getElementById('previewIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=0`;
 
-            loading.classList.remove('hidden');
-            loading.classList.add('flex');
-            options.classList.add('hidden');
-            options.classList.remove('flex');
-            
-            const btnAudio = document.getElementById('btnAudio');
-            const btnVideo = document.getElementById('btnVideo');
-            btnAudio.classList.add('hidden');
-            btnVideo.classList.add('hidden');
-
-            try {
-                let hasValidLink = false;
-
-                const [audioRes, videoRes] = await Promise.all([
-                    fetch(`${BACKEND_URL}/api/audio?v=${videoId}`).catch(()=>null),
-                    fetch(`${BACKEND_URL}/api/video?v=${videoId}`).catch(()=>null)
-                ]);
-
-                if (audioRes && audioRes.ok) {
-                    const audioData = await audioRes.json();
-                    if (audioData.url) {
-                        btnAudio.href = audioData.url;
-                        btnAudio.classList.remove('hidden');
-                        hasValidLink = true;
-                    }
-                }
-
-                if (videoRes && videoRes.ok) {
-                    const videoData = await videoRes.json();
-                    if (videoData.url) {
-                        btnVideo.href = videoData.url;
-                        btnVideo.classList.remove('hidden');
-                        hasValidLink = true;
-                    }
-                }
-
-                // Mostrar la interfaz con los resultados (o error si todo falló)
-                loading.classList.add('hidden');
-                loading.classList.remove('flex');
-                options.classList.remove('hidden');
-                options.classList.add('flex');
-
-                if (!hasValidLink) {
-                    errorMsg.classList.remove('hidden');
-                }
-
-            } catch (error) {
-                loading.classList.add('hidden');
-                loading.classList.remove('flex');
-                options.classList.remove('hidden');
-                options.classList.add('flex');
-                errorMsg.classList.remove('hidden');
-            }
+            // 3. Asignar los enlaces a los botones para que el navegador haga el trabajo al hacer clic
+            document.getElementById('btnAudio').href = `${BACKEND_URL}/api/download-audio?v=${videoId}`;
+            document.getElementById('btnVideo').href = `${BACKEND_URL}/api/download-video?v=${videoId}`;
         }
 
         function closeModal() {
@@ -449,8 +365,7 @@
             modal.classList.add('opacity-0');
             content.classList.add('translate-y-full', 'sm:translate-y-10');
             
-            // Detener la reproducción del video cuando se cierra el modal
-            document.getElementById('previewIframe').src = '';
+            document.getElementById('previewIframe').src = ''; // Apagar video
             
             setTimeout(() => {
                 modal.classList.add('hidden');
