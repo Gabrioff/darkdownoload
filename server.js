@@ -1,7 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const { execFile } = require('child_process');
-const fs = require('fs');
 const path = require('path');
 
 const app = express();
@@ -10,56 +8,76 @@ app.use(cors());
 // Aumentamos el límite para permitir recibir audio grabado
 app.use(express.json({ limit: '20mb' })); 
 
-const YTDLP_PATH = '/tmp/yt-dlp';
+// 7 Instancias públicas para burlar bloqueos (Carrera de servidores)
+const INVIDIOUS_INSTANCES = [
+    "https://vid.puffyan.us",
+    "https://inv.tux.pizza",
+    "https://invidious.flokinet.to",
+    "https://invidious.asir.dev"
+];
 
-// 1. DESCARGA DE YT-DLP
-async function ensureYtDlp() {
-    if (fs.existsSync(YTDLP_PATH)) {
-        const stats = fs.statSync(YTDLP_PATH);
-        if (stats.size > 15000000) return;
-    }
-    console.log("Descargando yt-dlp_linux...");
-    const response = await fetch('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux');
-    if (!response.ok) throw new Error("Error HTTP");
-    const buffer = await response.arrayBuffer();
-    fs.writeFileSync(YTDLP_PATH, Buffer.from(buffer));
-    fs.chmodSync(YTDLP_PATH, '755');
-}
-
-// 2. SISTEMA ANTI-BLOQUEO (APIs de respaldo)
 const PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
     "https://pipedapi.smnz.de",
     "https://api.piped.projectsegfau.lt"
 ];
 
-async function getFallbackStream(videoId, isAudio) {
-    for (let instance of PIPED_INSTANCES) {
-        try {
-            // Timeout de 4 segundos por instancia
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
-            const res = await fetch(`${instance}/streams/${videoId}`, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            
-            if (res.ok) {
-                const data = await res.json();
-                if (isAudio && data.audioStreams?.length > 0) {
-                    const bestAudio = data.audioStreams.find(s => s.format === "M4A") || data.audioStreams[0];
-                    return bestAudio.url;
+// SISTEMA "CARRERA DE SERVIDORES" (El primero que responda gana)
+async function getFastestStream(videoId, isAudio) {
+    const invPromises = INVIDIOUS_INSTANCES.map(instance => 
+        new Promise(async (resolve, reject) => {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 segundos máximo
+                const res = await fetch(`${instance}/api/v1/videos/${videoId}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isAudio && data.adaptiveFormats) {
+                        const audios = data.adaptiveFormats.filter(f => f.type && f.type.includes('audio'));
+                        if (audios.length > 0) return resolve(audios[0].url);
+                    }
+                    if (!isAudio && data.formatStreams) {
+                        const videos = data.formatStreams.filter(f => f.resolution);
+                        if (videos.length > 0) return resolve(videos[0].url);
+                    }
                 }
-                if (!isAudio && data.videoStreams?.length > 0) {
-                    // Buscar el stream que tenga video Y audio integrado
-                    const bestVideo = data.videoStreams.find(s => s.videoOnly === false) || data.videoStreams[0];
-                    return bestVideo.url;
+                reject();
+            } catch(e) { reject(); }
+        })
+    );
+
+    const pipedPromises = PIPED_INSTANCES.map(instance => 
+        new Promise(async (resolve, reject) => {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000);
+                const res = await fetch(`${instance}/streams/${videoId}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isAudio && data.audioStreams?.length > 0) {
+                        const bestAudio = data.audioStreams.find(s => s.format === "M4A") || data.audioStreams[0];
+                        return resolve(bestAudio.url);
+                    }
+                    if (!isAudio && data.videoStreams?.length > 0) {
+                        const bestVideo = data.videoStreams.find(s => !s.videoOnly) || data.videoStreams[0];
+                        return resolve(bestVideo.url);
+                    }
                 }
-            }
-        } catch(e) {
-            // Si una falla, pasa a la siguiente instancia automáticamente
-            console.log(`Falló instancia ${instance}, probando otra...`);
-        }
+                reject();
+            } catch(e) { reject(); }
+        })
+    );
+
+    try {
+        // Ejecuta todas las peticiones al mismo tiempo. La más rápida gana.
+        return await Promise.any([...invPromises, ...pipedPromises]);
+    } catch (error) {
+        return null;
     }
-    return null;
 }
 
 // ENDPOINT BASE: Mostrar la web
@@ -73,20 +91,37 @@ app.get('/api/search', async (req, res) => {
         const query = req.query.q;
         if (!query) return res.status(400).json({ error: "Falta la búsqueda" });
 
-        await ensureYtDlp();
+        // Carrera también para las búsquedas
+        const searchPromises = PIPED_INSTANCES.map(instance => 
+            new Promise(async (resolve, reject) => {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 4000);
+                    const res = await fetch(`${instance}/search?q=${encodeURIComponent(query)}&filter=all`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.items && data.items.length > 0) {
+                            const videos = data.items.filter(i => i.type === 'stream').map(i => ({
+                                id: i.url.split('v=')[1] || i.url.split('/').pop(),
+                                title: i.title,
+                                author: i.uploaderName,
+                                thumb: i.thumbnail,
+                                duration: i.duration
+                            }));
+                            if (videos.length > 0) return resolve(videos);
+                        }
+                    }
+                    reject();
+                } catch(e) { reject(); }
+            })
+        );
 
-        execFile(YTDLP_PATH, [`ytsearch20:${query}`, '--dump-json', '--flat-playlist'], { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-            if (error && !stdout) {
-                return res.status(500).json({ error: "Fallo en búsqueda" });
-            }
-            const lines = stdout.trim().split('\n');
-            const results = lines.map(line => {
-                try { return JSON.parse(line); } catch(e) { return null; }
-            }).filter(item => item && item.id);
-            res.json(results);
-        });
+        const results = await Promise.any(searchPromises);
+        res.json(results);
     } catch (error) {
-        res.status(500).json({ error: "Error en servidor" });
+        res.status(500).json({ error: "Servidores de búsqueda ocupados." });
     }
 });
 
@@ -95,25 +130,9 @@ app.get('/api/audio', async (req, res) => {
     const videoId = req.query.v;
     if (!videoId) return res.status(400).json({ error: "Falta ID" });
 
-    const handleFallback = async () => {
-        const fallbackUrl = await getFallbackStream(videoId, true);
-        if (fallbackUrl) return res.json({ url: fallbackUrl });
-        return res.status(500).json({ error: "Bloqueado por YouTube" });
-    };
-
-    try {
-        await ensureYtDlp();
-        execFile(YTDLP_PATH, ['-f', 'bestaudio', '--get-url', `https://www.youtube.com/watch?v=${videoId}`], (error, stdout, stderr) => {
-            if (!error && stdout) {
-                // Toma solo la primera URL generada
-                return res.json({ url: stdout.trim().split('\n')[0] });
-            } else {
-                handleFallback(); // Si YouTube lo bloqueó, activa el respaldo
-            }
-        });
-    } catch (error) {
-        handleFallback();
-    }
+    const url = await getFastestStream(videoId, true);
+    if (url) res.json({ url });
+    else res.status(500).json({ error: "Bloqueado por YouTube" });
 });
 
 // ENDPOINT: Extraer enlace de VIDEO
@@ -121,24 +140,9 @@ app.get('/api/video', async (req, res) => {
     const videoId = req.query.v;
     if (!videoId) return res.status(400).json({ error: "Falta ID" });
 
-    const handleFallback = async () => {
-        const fallbackUrl = await getFallbackStream(videoId, false);
-        if (fallbackUrl) return res.json({ url: fallbackUrl });
-        return res.status(500).json({ error: "Bloqueado por YouTube" });
-    };
-
-    try {
-        await ensureYtDlp();
-        execFile(YTDLP_PATH, ['-f', 'best', '--get-url', `https://www.youtube.com/watch?v=${videoId}`], (error, stdout, stderr) => {
-            if (!error && stdout) {
-                return res.json({ url: stdout.trim().split('\n')[0] });
-            } else {
-                handleFallback(); // Si YouTube lo bloqueó, activa el respaldo
-            }
-        });
-    } catch (error) {
-        handleFallback();
-    }
+    const url = await getFastestStream(videoId, false);
+    if (url) res.json({ url });
+    else res.status(500).json({ error: "Bloqueado por YouTube" });
 });
 
 // ENDPOINT: Reconocimiento de Música (Shazam)
