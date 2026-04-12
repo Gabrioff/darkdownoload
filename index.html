@@ -123,8 +123,8 @@
             
             <div class="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-6 sm:hidden"></div>
 
-            <div class="flex justify-between items-start mb-6">
-                <h3 class="text-xl font-bold text-white">Descargas Directas</h3>
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="text-xl font-bold text-white">Vista Previa & Descarga</h3>
                 <button onclick="closeModal()" class="text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-2 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
@@ -133,19 +133,25 @@
             <!-- Modal Loading -->
             <div id="modalLoading" class="flex flex-col items-center py-10">
                 <div class="w-12 h-12 border-4 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin mb-4"></div>
-                <p class="text-sm text-gray-400">Generando enlaces con yt-dlp...</p>
+                <p class="text-sm text-gray-400">Generando reproductor y enlaces...</p>
             </div>
 
-            <!-- Modal Options -->
-            <div id="modalOptions" class="hidden flex-col gap-4">
-                <div class="flex gap-4 items-center mb-2 p-3 bg-black/30 rounded-2xl border border-white/5 shadow-inner">
-                    <div class="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden shadow-md">
-                        <img id="modalThumb" src="" class="w-full h-full object-cover">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h4 id="modalTitle" class="text-sm font-semibold text-white line-clamp-2 leading-snug mb-1">...</h4>
-                        <p id="modalAuthor" class="text-xs text-gray-400 truncate">...</p>
-                    </div>
+            <!-- Modal Options (Vista Previa y Botones) -->
+            <div id="modalOptions" class="hidden flex-col w-full">
+                
+                <!-- Reproductor de Video (Vista Previa) -->
+                <div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-lg mb-4 bg-black/50 border border-white/10">
+                    <iframe id="previewIframe" class="w-full h-full" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+
+                <div class="mb-4 text-center">
+                    <h4 id="modalTitle" class="text-base font-bold text-white line-clamp-2 leading-snug mb-1">...</h4>
+                    <p id="modalAuthor" class="text-sm text-brand-primary truncate">...</p>
+                </div>
+
+                <!-- Mensaje de Error (Por si Vercel da Timeout) -->
+                <div id="downloadError" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center p-3 rounded-lg mb-3">
+                    El servidor tardó demasiado en procesar los enlaces directos. Por favor, cierra esto e intenta de nuevo.
                 </div>
 
                 <div class="space-y-3 mt-2">
@@ -153,8 +159,9 @@
                     <a id="btnAudio" href="#" target="_blank" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:opacity-90 text-white py-3.5 px-4 rounded-xl font-semibold flex justify-between items-center transition-all shadow-lg hidden">
                         <span class="flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                            Descargar Solo Audio
+                            Descargar Audio (MP3)
                         </span>
+                        <svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     </a>
 
                     <!-- Botón Video -->
@@ -163,9 +170,9 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                             Descargar Video (MP4)
                         </span>
+                        <svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     </a>
                 </div>
-                <p class="text-[11px] text-gray-500 text-center mt-1">Si el enlace abre un reproductor, presiona los 3 puntos (⋮) y selecciona "Descargar".</p>
             </div>
         </div>
     </div>
@@ -229,7 +236,6 @@
                     document.getElementById('micPulse').classList.add('hidden');
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     
-                    // Convertir a Base64 para enviarlo al servidor
                     const reader = new FileReader();
                     reader.readAsDataURL(audioBlob);
                     reader.onloadend = async () => {
@@ -237,16 +243,13 @@
                         await recognizeMusicInServer(base64Audio);
                     };
                     
-                    // Apagar el micrófono del dispositivo
                     stream.getTracks().forEach(track => track.stop());
                 });
 
-                // Iniciar grabación
                 mediaRecorder.start();
                 document.getElementById('micPulse').classList.remove('hidden');
                 document.getElementById('searchInput').placeholder = "Escuchando... 🎵";
                 
-                // Grabar por 5 segundos exactos
                 setTimeout(() => {
                     if (mediaRecorder.state === "recording") {
                         mediaRecorder.stop();
@@ -273,7 +276,6 @@
                     const foundQuery = `${data.title} ${data.artist}`;
                     document.getElementById('searchInput').value = foundQuery;
                     showToast(`¡Encontrada! ${data.title}`);
-                    // Disparar la búsqueda en YouTube automáticamente
                     document.getElementById('searchForm').dispatchEvent(new Event('submit'));
                 } else {
                     throw new Error(data.error || "No reconocida");
@@ -304,7 +306,7 @@
                 const videoId = match[1];
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('loadingState').classList.remove('flex');
-                openDownloadModal(videoId, "Video desde Enlace", "YouTube", `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
+                openDownloadModal(videoId, "Video desde Enlace", "YouTube");
                 return;
             }
 
@@ -345,7 +347,7 @@
 
                 const card = document.createElement('div');
                 card.className = "glass-panel rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all duration-300 group cursor-pointer border border-transparent hover:border-brand-primary/30 flex flex-col";
-                card.onclick = () => openDownloadModal(video.id, safeTitle, safeAuthor, video.thumb);
+                card.onclick = () => openDownloadModal(video.id, safeTitle, safeAuthor);
 
                 card.innerHTML = `
                     <div class="relative w-full aspect-video overflow-hidden">
@@ -363,12 +365,13 @@
             });
         }
 
-        // --- MODAL DE DESCARGAS (AUDIO Y VIDEO) ---
-        async function openDownloadModal(videoId, title, author, thumb) {
+        // --- MODAL DE VISTA PREVIA Y DESCARGAS ---
+        async function openDownloadModal(videoId, title, author) {
             const modal = document.getElementById('downloadModal');
             const content = document.getElementById('modalContent');
             const loading = document.getElementById('modalLoading');
             const options = document.getElementById('modalOptions');
+            const errorMsg = document.getElementById('downloadError');
             
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -377,23 +380,27 @@
                 content.classList.remove('translate-y-full', 'sm:translate-y-10');
             }, 10);
 
+            // Datos de la interfaz
             document.getElementById('modalTitle').innerText = title;
             document.getElementById('modalAuthor').innerText = author;
-            document.getElementById('modalThumb').src = thumb;
+            errorMsg.classList.add('hidden'); // Ocultar error inicial
+
+            // Inyectar el reproductor de YouTube
+            document.getElementById('previewIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=0`;
 
             loading.classList.remove('hidden');
             loading.classList.add('flex');
             options.classList.add('hidden');
             options.classList.remove('flex');
             
-            // Ocultamos los botones mientras cargan
             const btnAudio = document.getElementById('btnAudio');
             const btnVideo = document.getElementById('btnVideo');
             btnAudio.classList.add('hidden');
             btnVideo.classList.add('hidden');
 
             try {
-                // Hacemos ambas peticiones simultáneamente para no hacer esperar al usuario
+                let hasValidLink = false;
+
                 const [audioRes, videoRes] = await Promise.all([
                     fetch(`${BACKEND_URL}/api/audio?v=${videoId}`).catch(()=>null),
                     fetch(`${BACKEND_URL}/api/video?v=${videoId}`).catch(()=>null)
@@ -404,7 +411,7 @@
                     if (audioData.url) {
                         btnAudio.href = audioData.url;
                         btnAudio.classList.remove('hidden');
-                        btnAudio.classList.add('flex');
+                        hasValidLink = true;
                     }
                 }
 
@@ -413,18 +420,26 @@
                     if (videoData.url) {
                         btnVideo.href = videoData.url;
                         btnVideo.classList.remove('hidden');
-                        btnVideo.classList.add('flex');
+                        hasValidLink = true;
                     }
                 }
 
+                // Mostrar la interfaz con los resultados (o error si todo falló)
                 loading.classList.add('hidden');
                 loading.classList.remove('flex');
                 options.classList.remove('hidden');
                 options.classList.add('flex');
 
+                if (!hasValidLink) {
+                    errorMsg.classList.remove('hidden');
+                }
+
             } catch (error) {
-                closeModal();
-                showToast("Hubo un error al generar los enlaces.", true);
+                loading.classList.add('hidden');
+                loading.classList.remove('flex');
+                options.classList.remove('hidden');
+                options.classList.add('flex');
+                errorMsg.classList.remove('hidden');
             }
         }
 
@@ -433,6 +448,10 @@
             const content = document.getElementById('modalContent');
             modal.classList.add('opacity-0');
             content.classList.add('translate-y-full', 'sm:translate-y-10');
+            
+            // Detener la reproducción del video cuando se cierra el modal
+            document.getElementById('previewIframe').src = '';
+            
             setTimeout(() => {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
