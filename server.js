@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const fs = require('fs');
-const https = require('https');
 const path = require('path');
 
 const app = express();
@@ -11,29 +10,31 @@ app.use(cors()); // Permite peticiones desde tu Frontend
 // Ruta temporal donde Vercel permite guardar archivos
 const YTDLP_PATH = '/tmp/yt-dlp';
 
-// Función para asegurar que yt-dlp está descargado en el servidor de Vercel
+// Función para asegurar que yt-dlp está descargado CORRECTAMENTE en Vercel
 async function ensureYtDlp() {
-    return new Promise((resolve, reject) => {
-        if (fs.existsSync(YTDLP_PATH)) {
-            return resolve();
+    // Verificar si el archivo ya existe y si pesa lo correcto (más de 1MB)
+    // Esto evita usar el archivo corrupto de 0 bytes del error anterior
+    if (fs.existsSync(YTDLP_PATH)) {
+        const stats = fs.statSync(YTDLP_PATH);
+        if (stats.size > 1000000) {
+            return;
         }
+    }
 
-        console.log("Descargando yt-dlp en entorno Serverless...");
-        const file = fs.createWriteStream(YTDLP_PATH);
-        
-        https.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', function(response) {
-            response.pipe(file);
-            file.on('finish', function() {
-                file.close();
-                fs.chmodSync(YTDLP_PATH, '755'); // Dar permisos de ejecución
-                console.log("✅ yt-dlp listo.");
-                resolve();
-            });
-        }).on('error', function(err) {
-            fs.unlink(YTDLP_PATH, () => {});
-            reject(err);
-        });
-    });
+    console.log("Descargando yt-dlp en entorno Serverless...");
+    
+    // Usamos 'fetch' nativo porque sí sigue las redirecciones de GitHub correctamente
+    const response = await fetch('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp');
+    
+    if (!response.ok) {
+        throw new Error(`Error HTTP al descargar: ${response.statusText}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    fs.writeFileSync(YTDLP_PATH, Buffer.from(buffer));
+    fs.chmodSync(YTDLP_PATH, '755'); // Dar permisos de ejecución en Linux
+    
+    console.log("✅ yt-dlp descargado e instalado con éxito.");
 }
 
 // Endpoint base: Mostrar la interfaz visual bonita
@@ -41,7 +42,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ENDPOINT: Búsqueda (Texto)
+// ENDPOINT: Búsqueda de CUALQUIER VIDEO en YouTube
 app.get('/api/search', async (req, res) => {
     try {
         const query = req.query.q;
@@ -49,11 +50,10 @@ app.get('/api/search', async (req, res) => {
 
         await ensureYtDlp();
 
-        // Extraer 20 resultados en formato JSON
-        const command = `${YTDLP_PATH} "ytsearch20:${query}" --dump-json --flat-playlist`;
-        
-        exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-            if (error) {
+        // Usar execFile es más seguro y evita errores con espacios o símbolos en la búsqueda
+        execFile(YTDLP_PATH, [`ytsearch20:${query}`, '--dump-json', '--flat-playlist'], { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+            // A veces yt-dlp manda advertencias por stderr, pero stdout sí tiene los datos
+            if (error && !stdout) {
                 console.error("Error en búsqueda:", stderr);
                 return res.status(500).json({ error: "Error ejecutando búsqueda" });
             }
@@ -66,11 +66,12 @@ app.get('/api/search', async (req, res) => {
             res.json(results);
         });
     } catch (error) {
-        res.status(500).json({ error: "Error inicializando entorno." });
+        console.error(error);
+        res.status(500).json({ error: "Error inicializando entorno temporal." });
     }
 });
 
-// ENDPOINT: Obtener Audio (Link o ID)
+// ENDPOINT: Obtener URL del Audio
 app.get('/api/audio', async (req, res) => {
     try {
         const videoId = req.query.v;
@@ -78,10 +79,8 @@ app.get('/api/audio', async (req, res) => {
 
         await ensureYtDlp();
 
-        // Extraer la URL del mejor audio disponible sin descargar el archivo
-        const command = `${YTDLP_PATH} -f "bestaudio/best" --get-url "https://www.youtube.com/watch?v=${videoId}"`;
-
-        exec(command, (error, stdout, stderr) => {
+        // Extraer la URL del mejor audio disponible
+        execFile(YTDLP_PATH, ['-f', 'bestaudio/best', '--get-url', `https://www.youtube.com/watch?v=${videoId}`], (error, stdout, stderr) => {
             if (error) {
                 console.error("Error obteniendo audio:", stderr);
                 return res.status(500).json({ error: "No se pudo extraer el audio" });
@@ -89,9 +88,10 @@ app.get('/api/audio', async (req, res) => {
             res.json({ url: stdout.trim() });
         });
     } catch (error) {
-        res.status(500).json({ error: "Error inicializando entorno." });
+        console.error(error);
+        res.status(500).json({ error: "Error inicializando entorno temporal." });
     }
 });
 
-// Exportar la app para que Vercel la ejecute como Serverless Function
+// Exportar la app para que Vercel la ejecute
 module.exports = app;
