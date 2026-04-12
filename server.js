@@ -49,15 +49,16 @@ function runYtDlp(args) {
 // =========================================================
 const PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
-    "https://pipedapi.smnz.de",
-    "https://api.piped.projectsegfau.lt"
+    "https://api.piped.projectsegfau.lt",
+    "https://pipedapi.tokhmi.xyz",
+    "https://pipedapi.smnz.de"
 ];
 
 const INVIDIOUS_INSTANCES = [
-    "https://vid.puffyan.us",
     "https://inv.tux.pizza",
-    "https://invidious.flokinet.to",
-    "https://invidious.asir.dev"
+    "https://invidious.nerdvpn.de",
+    "https://inv.nadeko.net",
+    "https://invidious.privacydev.net"
 ];
 
 // Cabecera para evitar ser detectados como bot por las APIs
@@ -96,18 +97,7 @@ async function searchWithPiped(query) {
 async function getFastestStream(videoId, isAudio) {
     const promises = [];
 
-    // Competidor 1: YT-DLP Local (El más rápido si no está bloqueado)
-    promises.push(new Promise(async (resolve, reject) => {
-        try {
-            await ensureYtDlp();
-            const stdout = await runYtDlp(['-f', isAudio ? 'bestaudio' : 'best', '--get-url', `https://www.youtube.com/watch?v=${videoId}`]);
-            const url = stdout.trim().split('\n')[0];
-            if (url && url.startsWith('http')) resolve(url);
-            else reject();
-        } catch(e) { reject(); }
-    }));
-
-    // Competidores 2: Instancias Piped
+    // Competidores 1: Instancias Piped (Mejores para enlaces directos)
     PIPED_INSTANCES.forEach(instance => {
         promises.push(new Promise(async (resolve, reject) => {
             try {
@@ -125,6 +115,22 @@ async function getFastestStream(videoId, isAudio) {
                         const bestVideo = data.videoStreams.find(s => !s.videoOnly) || data.videoStreams[0];
                         if (bestVideo.url) return resolve(bestVideo.url);
                     }
+                }
+                reject();
+            } catch(e) { reject(); }
+        }));
+    });
+
+    // Competidores 2: Instancias Invidious (Usadas como Proxy Local)
+    INVIDIOUS_INSTANCES.forEach(instance => {
+        promises.push(new Promise(async (resolve, reject) => {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const res = await fetch(`${instance}/api/v1/videos/${videoId}`, { headers, signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (res.ok) {
+                    return resolve(`${instance}/latest_version?id=${videoId}&itag=${isAudio ? '140' : '22'}&local=true`);
                 }
                 reject();
             } catch(e) { reject(); }
@@ -187,11 +193,8 @@ app.get('/api/download-audio', async (req, res) => {
     const url = await getFastestStream(videoId, true);
     if (url) return res.redirect(302, url);
     
-    // PLAN DE EMERGENCIA EXTREMA: Redirección Ciega
-    // Si TODO falla, forzamos la descarga directa a través de un proxy Invidious aleatorio.
-    // Esto NUNCA dará error 500 porque lo procesa el navegador del usuario.
-    const randomInv = INVIDIOUS_INSTANCES[Math.floor(Math.random() * INVIDIOUS_INSTANCES.length)];
-    const emergencyUrl = `${randomInv}/latest_version?id=${videoId}&itag=140&local=true`;
+    // PLAN DE EMERGENCIA EXTREMA: Servidor Invidious más estable
+    const emergencyUrl = `https://inv.tux.pizza/latest_version?id=${videoId}&itag=140&local=true`;
     return res.redirect(302, emergencyUrl);
 });
 
@@ -203,9 +206,8 @@ app.get('/api/download-video', async (req, res) => {
     const url = await getFastestStream(videoId, false);
     if (url) return res.redirect(302, url);
     
-    // PLAN DE EMERGENCIA EXTREMA: Redirección Ciega (Video 720p - itag 22)
-    const randomInv = INVIDIOUS_INSTANCES[Math.floor(Math.random() * INVIDIOUS_INSTANCES.length)];
-    const emergencyUrl = `${randomInv}/latest_version?id=${videoId}&itag=22&local=true`;
+    // PLAN DE EMERGENCIA EXTREMA: Servidor Invidious más estable (Video 720p)
+    const emergencyUrl = `https://inv.tux.pizza/latest_version?id=${videoId}&itag=22&local=true`;
     return res.redirect(302, emergencyUrl);
 });
 
