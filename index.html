@@ -2,379 +2,366 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MusicBot Premium</title>
-    <!-- Telegram Web App Script -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sonico - Descargador de Música</title>
     
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Poppins', 'sans-serif'] },
-                    colors: {
-                        brand: {
-                            dark: '#0B0F19',
-                            primary: '#6366f1',
-                            secondary: '#a855f7'
-                        }
-                    },
-                    animation: {
-                        'float': 'float 3s ease-in-out infinite',
-                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- Tailwind CSS (Directo desde CDN para no compilar nada) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
-        body {
-            background-color: #0B0F19;
-            background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.15), transparent 40%),
-                              radial-gradient(circle at bottom left, rgba(168, 85, 247, 0.15), transparent 40%);
-            color: #f8fafc;
-            -webkit-tap-highlight-color: transparent;
-            min-height: 100vh;
-        }
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.4);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .search-glow:focus-within {
-            box-shadow: 0 0 25px rgba(99, 102, 241, 0.3);
-            border-color: rgba(99, 102, 241, 0.5);
-        }
-        .line-clamp-2 {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
+        /* Animaciones CSS puras */
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        .slide-up { animation: slideUp 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .oculto { display: none !important; }
     </style>
 </head>
-<body class="flex flex-col pb-12 relative overflow-x-hidden">
+<body class="min-h-screen bg-gray-950 text-gray-100 font-sans selection:bg-purple-500/30">
 
-    <!-- Navbar -->
-    <header class="glass-panel sticky top-0 z-20 px-6 py-4 shadow-lg">
-        <div class="max-w-4xl mx-auto flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-primary to-brand-secondary p-[2px]">
-                    <div class="w-full h-full bg-brand-dark rounded-full flex items-center justify-center">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                    </div>
-                </div>
-                <h1 class="text-xl font-bold tracking-wide">Music<span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-primary to-brand-secondary">Bot</span></h1>
+    <!-- Barra de navegación -->
+    <header class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-2 text-purple-400">
+                <i data-lucide="music" class="w-8 h-8"></i>
+                <h1 class="text-2xl font-bold tracking-tight text-white">Sonico</h1>
             </div>
-            <div id="userInfo" class="text-sm text-gray-400 font-medium"></div>
+            <div class="text-sm text-gray-400 hidden sm:block">
+                Motor IA alimentado por <span class="text-purple-400">Hugging Face</span>
+            </div>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="max-w-4xl mx-auto w-full px-4 pt-8">
+    <main class="max-w-6xl mx-auto px-4 py-8">
         
-        <div class="text-center mb-10 animate-float">
-            <h2 class="text-3xl sm:text-4xl font-bold mb-3">Descubre & Descarga</h2>
-            <p class="text-gray-400 text-sm sm:text-base">Escribe, pega un enlace o usa el micrófono para reconocer música.</p>
+        <!-- Botones para cambiar de modo -->
+        <div class="flex justify-center gap-4 mb-8">
+            <button id="btn-modo-manual" class="px-6 py-2 rounded-full font-medium transition-all flex items-center gap-2 bg-purple-600 text-white shadow-lg shadow-purple-500/30">
+                <i data-lucide="search" class="w-4 h-4"></i> Búsqueda Manual
+            </button>
+            <button id="btn-modo-ia" class="px-6 py-2 rounded-full font-medium transition-all flex items-center gap-2 bg-gray-800 text-gray-400 hover:bg-gray-700">
+                <i data-lucide="sparkles" class="w-4 h-4"></i> Playlist con IA
+            </button>
         </div>
 
-        <!-- Buscador Inteligente Único con Micrófono -->
-        <form id="searchForm" class="relative max-w-2xl mx-auto mb-12 z-10" onsubmit="handleUniversalSearch(event)">
-            <div class="glass-panel search-glow rounded-2xl flex items-center p-2 transition-all duration-300">
-                
-                <!-- Botón Micrófono Shazam -->
-                <button type="button" id="btnMic" onclick="startAudioRecognition()" class="p-2 text-gray-400 hover:text-brand-secondary transition-colors rounded-full hover:bg-white/5 relative">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-                    <span id="micPulse" class="absolute inset-0 rounded-full bg-brand-secondary/50 animate-pulse-fast hidden"></span>
-                </button>
+        <!-- SECCIÓN: Búsqueda Manual -->
+        <section id="seccion-manual" class="mb-12 max-w-2xl mx-auto text-center fade-in">
+            <h2 class="text-4xl font-extrabold mb-4 bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
+                Encuentra y descarga tu música
+            </h2>
+            <p class="text-gray-400 mb-8">
+                Busca cualquier canción o artista. Nuestro sistema encontrará la mejor versión en YouTube y la convertirá a MP3.
+            </p>
 
-                <input type="text" id="searchInput" placeholder="Buscar música, video o enlace..." class="w-full bg-transparent border-none text-white px-3 py-3 focus:outline-none focus:ring-0 placeholder-gray-500 text-lg" required autocomplete="off">
-                
-                <button type="submit" class="bg-gradient-to-r from-brand-primary to-brand-secondary hover:opacity-90 text-white p-3 rounded-xl transition-all shadow-lg shrink-0">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <form id="form-manual" class="relative flex items-center">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <i data-lucide="search" class="w-5 h-5 text-gray-500"></i>
+                </div>
+                <input
+                    type="text"
+                    id="input-busqueda"
+                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-full py-4 pl-12 pr-32 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all shadow-lg"
+                    placeholder="Ej. The Weeknd Blinding Lights..."
+                    autocomplete="off"
+                >
+                <button
+                    type="submit"
+                    id="btn-buscar"
+                    class="absolute right-2 top-2 bottom-2 bg-purple-600 hover:bg-purple-700 text-white px-6 rounded-full font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                    <span id="texto-btn-buscar">Buscar</span>
                 </button>
-            </div>
-        </form>
+            </form>
+        </section>
 
-        <!-- Loading State -->
-        <div id="loadingState" class="hidden flex-col items-center justify-center py-12 max-w-2xl mx-auto">
-            <div class="w-12 h-12 border-4 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin mb-4"></div>
-            <p id="loadingText" class="text-brand-primary font-medium animate-pulse text-sm">Buscando en YouTube...</p>
+        <!-- SECCIÓN: Playlist IA -->
+        <section id="seccion-ia" class="mb-12 max-w-2xl mx-auto text-center oculto fade-in">
+            <h2 class="text-4xl font-extrabold mb-4 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent flex items-center justify-center gap-3">
+                <i data-lucide="sparkles" class="w-8 h-8 text-indigo-400"></i> Curador Musical IA
+            </h2>
+            <p class="text-gray-400 mb-8">
+                Dile a la Inteligencia Artificial cómo te sientes o qué ritmo buscas. Diseñará una lista 100% personalizada.
+            </p>
+
+            <form id="form-ia" class="flex flex-col gap-4">
+                <textarea
+                    id="input-gustos"
+                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-2xl py-4 px-6 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-lg resize-none h-32 placeholder-gray-500"
+                    placeholder="Ej. Necesito 5 canciones motivadoras estilo Hip-Hop de los 90s para ir a entrenar pesado en el gimnasio..."
+                ></textarea>
+                <button
+                    type="submit"
+                    id="btn-generar-ia"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+                >
+                    <i data-lucide="list-plus" class="w-5 h-5 icono-ia-normal"></i> 
+                    <span id="texto-btn-ia">Generar Playlist Mágica</span>
+                </button>
+            </form>
+        </section>
+
+        <!-- Contenedores de Resultados -->
+        <div id="contenedor-resultados-manual" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 slide-up"></div>
+        <div id="contenedor-resultados-ia" class="max-w-3xl mx-auto bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl slide-up oculto">
+            <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-6 h-6 text-indigo-400"></i> Resultados recomendados por Gemini:
+            </h3>
+            <div id="lista-ia" class="flex flex-col gap-3"></div>
         </div>
 
-        <!-- Results Grid -->
-        <div id="resultsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 relative z-0">
-            <!-- Cards go here -->
+        <div id="mensaje-vacio" class="text-center text-gray-500 mt-12 oculto">
+            No se encontraron resultados. Prueba con otros términos.
         </div>
     </main>
 
-    <!-- Modal de Vista Previa y Descarga INSTANTÁNEO -->
-    <div id="downloadModal" class="fixed inset-0 bg-brand-dark/90 backdrop-blur-md z-50 hidden flex-col items-center justify-end sm:justify-center p-0 sm:p-4 opacity-0 transition-opacity duration-300">
-        <div class="glass-panel w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 transform translate-y-full sm:translate-y-10 transition-transform duration-300 shadow-2xl border-t border-white/10" id="modalContent">
-            
-            <div class="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-6 sm:hidden"></div>
-
-            <div class="flex justify-between items-start mb-4">
-                <h3 class="text-xl font-bold text-white">Vista Previa & Descarga</h3>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-2 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-
-            <!-- Opciones Visibles Instantáneamente -->
-            <div class="flex flex-col w-full">
-                
-                <!-- Reproductor de Video -->
-                <div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-lg mb-4 bg-black/50 border border-white/10">
-                    <iframe id="previewIframe" class="w-full h-full" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                </div>
-
-                <div class="mb-4 text-center">
-                    <h4 id="modalTitle" class="text-base font-bold text-white line-clamp-2 leading-snug mb-1">...</h4>
-                    <p id="modalAuthor" class="text-sm text-brand-primary truncate">...</p>
-                </div>
-
-                <div class="space-y-3 mt-2">
-                    <!-- Botón Audio (Link directo al Backend que redirecciona) -->
-                    <a id="btnAudio" href="#" target="_blank" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:opacity-90 text-white py-3.5 px-4 rounded-xl font-semibold flex justify-between items-center transition-all shadow-lg">
-                        <span class="flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                            Descargar Audio (MP3/M4A)
-                        </span>
-                        <svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    </a>
-
-                    <!-- Botón Video (Link directo al Backend que redirecciona) -->
-                    <a id="btnVideo" href="#" target="_blank" class="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90 text-white py-3.5 px-4 rounded-xl font-semibold flex justify-between items-center transition-all shadow-lg">
-                        <span class="flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                            Descargar Video (MP4)
-                        </span>
-                        <svg class="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    </a>
-                </div>
-            </div>
-        </div>
+    <!-- Sistema de Notificaciones (Toast) -->
+    <div id="toast" class="fixed bottom-6 right-6 p-4 rounded-lg shadow-2xl flex items-center gap-3 z-50 transform transition-all translate-y-20 opacity-0 pointer-events-none">
+        <div id="toast-icono"></div>
+        <p id="toast-mensaje" class="text-sm font-medium"></p>
     </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 glass-panel border-l-4 px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 text-sm font-medium transition-all duration-300 opacity-0 -translate-y-full">
-        <span id="toastIcon"></span>
-        <span id="toastMessage" class="text-white">Mensaje</span>
-    </div>
-
+    <!-- LÓGICA JAVASCRIPT (VANILLA) -->
     <script>
-        // ⚠️ Asegúrate de que esta sea tu URL real de Vercel ⚠️
-        const BACKEND_URL = "https://darkdownoload.vercel.app";
+        // Inicializar iconos SVG
+        lucide.createIcons();
 
-        const tg = window.Telegram.WebApp;
-        tg.expand();
+        // TU ENLACE DE HUGGING FACE (El Backend que ya está corriendo)
+        const BACKEND_URL = 'https://pepeoff-darkdownload.hf.space';
+
+        // Variables del DOM
+        let modoActual = 'manual';
+        let peticionEnCurso = false;
+
+        const btnManual = document.getElementById('btn-modo-manual');
+        const btnIA = document.getElementById('btn-modo-ia');
+        const secManual = document.getElementById('seccion-manual');
+        const secIA = document.getElementById('seccion-ia');
         
-        if (tg.initDataUnsafe?.user) {
-            document.getElementById('userInfo').innerHTML = `<span class="text-gray-500">Hola,</span> <span class="text-white">${tg.initDataUnsafe.user.first_name}</span>`;
-        }
+        const formManual = document.getElementById('form-manual');
+        const inputBusqueda = document.getElementById('input-busqueda');
+        const btnBuscar = document.getElementById('btn-buscar');
+        
+        const formIA = document.getElementById('form-ia');
+        const inputGustos = document.getElementById('input-gustos');
+        const btnGenerarIA = document.getElementById('btn-generar-ia');
+        
+        const contManual = document.getElementById('contenedor-resultados-manual');
+        const contIA = document.getElementById('contenedor-resultados-ia');
+        const listaIA = document.getElementById('lista-ia');
+        const msjVacio = document.getElementById('mensaje-vacio');
 
-        function formatTime(seconds) {
-            if(!seconds) return "0:00";
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            if(h > 0) return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-            return `${m}:${s < 10 ? '0' : ''}${s}`;
-        }
+        const toast = document.getElementById('toast');
+        const toastIcono = document.getElementById('toast-icono');
+        const toastMensaje = document.getElementById('toast-mensaje');
+        let toastTimeout;
 
-        function showToast(message, isError = false) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toastIcon').innerHTML = isError ? '🔴' : '🟢';
-            toast.style.borderLeftColor = isError ? '#ef4444' : '#10b981';
-            document.getElementById('toastMessage').innerText = message;
+        // Función de notificaciones
+        function mostrarNotificacion(tipo, mensaje) {
+            clearTimeout(toastTimeout);
+            toast.className = 'fixed bottom-6 right-6 p-4 rounded-lg shadow-2xl flex items-center gap-3 z-50 transform transition-all duration-300';
             
-            toast.classList.remove('-translate-y-full', 'opacity-0');
-            toast.classList.add('translate-y-0', 'opacity-100');
-            setTimeout(() => {
-                toast.classList.remove('translate-y-0', 'opacity-100');
-                toast.classList.add('-translate-y-full', 'opacity-0');
-            }, 3500);
+            if (tipo === 'error') {
+                toast.classList.add('bg-red-900/90', 'text-red-200', 'border', 'border-red-800');
+                toastIcono.innerHTML = '<i data-lucide="alert-circle" class="w-5 h-5"></i>';
+            } else if (tipo === 'exito') {
+                toast.classList.add('bg-emerald-900/90', 'text-emerald-200', 'border', 'border-emerald-800');
+                toastIcono.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5"></i>';
+            } else {
+                toast.classList.add('bg-blue-900/90', 'text-blue-200', 'border', 'border-blue-800');
+                toastIcono.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+            }
+            
+            toastMensaje.textContent = mensaje;
+            lucide.createIcons();
+            
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            });
+
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 5000);
         }
 
-        // --- SISTEMA SHAZAM ---
-        let mediaRecorder;
-        let audioChunks = [];
-
-        async function startAudioRecognition() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-
-                mediaRecorder.addEventListener("dataavailable", event => {
-                    audioChunks.push(event.data);
-                });
-
-                mediaRecorder.addEventListener("stop", async () => {
-                    document.getElementById('micPulse').classList.add('hidden');
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    
-                    const reader = new FileReader();
-                    reader.readAsDataURL(audioBlob);
-                    reader.onloadend = async () => {
-                        const base64Audio = reader.result.split(',')[1];
-                        await recognizeMusicInServer(base64Audio);
-                    };
-                    
-                    stream.getTracks().forEach(track => track.stop());
-                });
-
-                mediaRecorder.start();
-                document.getElementById('micPulse').classList.remove('hidden');
-                document.getElementById('searchInput').placeholder = "Escuchando... 🎵";
-                
-                setTimeout(() => {
-                    if (mediaRecorder.state === "recording") {
-                        mediaRecorder.stop();
-                        document.getElementById('searchInput').placeholder = "Analizando audio...";
-                    }
-                }, 5000);
-
-            } catch (err) {
-                showToast("Debes dar permisos de micrófono para usar esta función.", true);
+        // Cambiar entre Búsqueda Normal e IA
+        function cambiarModo(modo) {
+            if (peticionEnCurso) return;
+            modoActual = modo;
+            contManual.innerHTML = '';
+            listaIA.innerHTML = '';
+            contIA.classList.add('oculto');
+            msjVacio.classList.add('oculto');
+            
+            if (modo === 'manual') {
+                btnManual.className = "px-6 py-2 rounded-full font-medium transition-all flex items-center gap-2 bg-purple-600 text-white shadow-lg shadow-purple-500/30";
+                btnIA.className = "px-6 py-2 rounded-full font-medium transition-all flex items-center gap-2 bg-gray-800 text-gray-400 hover:bg-gray-700";
+                secManual.classList.remove('oculto');
+                secIA.classList.add('oculto');
+            } else {
+                btnIA.className = "px-6 py-2 rounded-full font-medium transition-all flex items-center gap-2 bg-indigo-600 text-white shadow-lg shadow-indigo-500/30";
+                btnManual.className = "px-6 py-2 rounded-full font-medium transition-all flex items-center gap-2 bg-gray-800 text-gray-400 hover:bg-gray-700";
+                secIA.classList.remove('oculto');
+                secManual.classList.add('oculto');
             }
         }
 
-        async function recognizeMusicInServer(base64Audio) {
+        btnManual.addEventListener('click', () => cambiarModo('manual'));
+        btnIA.addEventListener('click', () => cambiarModo('ia'));
+
+        // Bloquear botones mientras carga
+        function setCargando(cargando, tipo) {
+            peticionEnCurso = cargando;
+            if (tipo === 'manual') {
+                btnBuscar.disabled = cargando;
+                btnBuscar.innerHTML = cargando ? '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>' : '<span>Buscar</span>';
+            } else {
+                btnGenerarIA.disabled = cargando;
+                btnGenerarIA.innerHTML = cargando ? '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Controlando IA Gemini...' : '<i data-lucide="list-plus" class="w-5 h-5"></i> <span>Generar Playlist Mágica</span>';
+            }
+            lucide.createIcons();
+        }
+
+        // BÚSQUEDA MANUAL (Apple Music API - Gratuita y sin CORS issues)
+        formManual.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const termino = inputBusqueda.value.trim();
+            if (!termino) return;
+
+            setCargando(true, 'manual');
+            contManual.innerHTML = '';
+            msjVacio.classList.add('oculto');
+
             try {
-                showToast("Analizando canción...");
-                const response = await fetch(`${BACKEND_URL}/api/recognize`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ audioBase64: base64Audio })
-                });
-                const data = await response.json();
-                if (response.ok && data.title) {
-                    const foundQuery = `${data.title} ${data.artist}`;
-                    document.getElementById('searchInput').value = foundQuery;
-                    showToast(`¡Encontrada! ${data.title}`);
-                    document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+                const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(termino)}&media=music&limit=12`);
+                const data = await res.json();
+                
+                if (data.results.length === 0) {
+                    msjVacio.classList.remove('oculto');
                 } else {
-                    throw new Error("No reconocida");
+                    data.results.forEach(cancion => {
+                        const img = cancion.artworkUrl100.replace('100x100bb', '600x600bb');
+                        const art = cancion.artistName.replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                        const trk = cancion.trackName.replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                        
+                        contManual.insertAdjacentHTML('beforeend', `
+                            <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-colors group flex flex-col">
+                                <div class="relative aspect-square overflow-hidden">
+                                    <img src="${img}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy">
+                                </div>
+                                <div class="p-4 flex flex-col flex-grow">
+                                    <h3 class="font-bold text-lg text-white line-clamp-1">${trk}</h3>
+                                    <p class="text-gray-400 text-sm mb-4 line-clamp-1">${art}</p>
+                                    <button class="btn-descargar mt-auto w-full bg-gray-800 hover:bg-purple-600 text-white py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors" data-query="${art} ${trk} audio" data-filename="${art} - ${trk}.mp3">
+                                        <i data-lucide="download" class="w-4 h-4"></i> Descargar MP3
+                                    </button>
+                                </div>
+                            </div>
+                        `);
+                    });
+                    lucide.createIcons();
                 }
             } catch (error) {
-                showToast(error.message, true);
-                document.getElementById('searchInput').placeholder = "Buscar música, video o enlace...";
+                mostrarNotificacion('error', 'Error al buscar. Verifica tu internet.');
+            } finally {
+                setCargando(false, 'manual');
             }
-        }
+        });
 
-        // --- BUSCADOR ---
-        async function handleUniversalSearch(e) {
+        // BÚSQUEDA IA (Hablando con tu Hugging Face)
+        formIA.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const inputField = document.getElementById('searchInput');
-            const query = inputField.value.trim();
-            if (!query) return;
+            const gustos = inputGustos.value.trim();
+            if (!gustos) return;
 
-            inputField.blur();
-            document.getElementById('resultsGrid').innerHTML = '';
-            document.getElementById('loadingState').classList.remove('hidden');
-            document.getElementById('loadingState').classList.add('flex');
-
-            const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-            const match = query.match(ytRegex);
-
-            if (match && match[1]) {
-                document.getElementById('loadingState').classList.add('hidden');
-                document.getElementById('loadingState').classList.remove('flex');
-                openDownloadModal(match[1], "Video desde Enlace", "YouTube");
-                return;
-            }
+            setCargando(true, 'ia');
+            listaIA.innerHTML = '';
+            contIA.classList.add('oculto');
+            mostrarNotificacion('info', '🧠 La IA está armando tu playlist...');
 
             try {
-                const response = await fetch(`${BACKEND_URL}/api/search?q=${encodeURIComponent(query)}`);
-                if (!response.ok) throw new Error("Error del servidor");
-                const videos = await response.json();
-                renderResults(videos);
-            } catch (error) {
-                showToast("Fallo en la búsqueda.", true);
-            } finally {
-                document.getElementById('loadingState').classList.add('hidden');
-                document.getElementById('loadingState').classList.remove('flex');
-            }
-        }
+                const res = await fetch(`${BACKEND_URL}/api/generar_playlist`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gustos })
+                });
 
-        function renderResults(videos) {
-            const grid = document.getElementById('resultsGrid');
-            grid.innerHTML = '';
-            if (!videos || videos.length === 0) {
-                grid.innerHTML = `<p class="col-span-full text-center text-gray-400 py-10">No se encontraron resultados.</p>`;
-                return;
-            }
+                if (!res.ok) throw new Error('Fallo de conexión en la IA.');
+                
+                const data = await res.json();
+                
+                data.playlist.forEach(textoCancion => {
+                    const partes = textoCancion.split('-');
+                    const artista = partes[0] ? partes[0].trim() : 'Desconocido';
+                    const cancion = partes[1] ? partes[1].trim() : textoCancion;
+                    const nombreArchivo = `${artista} - ${cancion}.mp3`.replace(/'/g, "").replace(/"/g, "");
 
-            videos.forEach(video => {
-                if (!video.id) return;
-                const safeTitle = video.title ? video.title.replace(/"/g, '&quot;') : 'Sin Título';
-                const safeAuthor = video.author ? video.author.replace(/"/g, '&quot;') : 'Desconocido';
-
-                const card = document.createElement('div');
-                card.className = "glass-panel rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all duration-300 group cursor-pointer border border-transparent hover:border-brand-primary/30 flex flex-col";
-                // Al hacer clic, abre el modal INMEDIATAMENTE
-                card.onclick = () => openDownloadModal(video.id, safeTitle, safeAuthor);
-
-                card.innerHTML = `
-                    <div class="relative w-full aspect-video overflow-hidden">
-                        <img src="${video.thumb}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                        <span class="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-white text-[11px] px-2 py-1 rounded-md font-medium shadow-lg">${formatTime(video.duration)}</span>
-                    </div>
-                    <div class="p-4 flex-1 flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-sm font-semibold leading-snug mb-1 line-clamp-2 text-white group-hover:text-brand-primary transition-colors">${safeTitle}</h3>
-                            <p class="text-xs text-gray-400 truncate">${safeAuthor}</p>
+                    listaIA.insertAdjacentHTML('beforeend', `
+                        <div class="bg-gray-800/40 border border-gray-700/50 rounded-xl p-4 flex items-center justify-between">
+                            <div class="flex items-center gap-5">
+                                <div class="w-12 h-12 bg-indigo-900/50 rounded-lg flex items-center justify-center text-indigo-400">
+                                    <i data-lucide="music" class="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-white text-lg">${cancion}</h4>
+                                    <p class="text-gray-400 text-sm">${artista}</p>
+                                </div>
+                            </div>
+                            <button class="btn-descargar bg-gray-700 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-lg flex items-center gap-2" data-query="${textoCancion}" data-filename="${nombreArchivo}">
+                                <i data-lucide="download" class="w-4 h-4"></i> Descargar
+                            </button>
                         </div>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
-        }
+                    `);
+                });
+                
+                contIA.classList.remove('oculto');
+                lucide.createIcons();
+                mostrarNotificacion('exito', '✨ ¡Playlist mágica generada!');
+            } catch (error) {
+                mostrarNotificacion('error', 'Error al conectar con la IA de Hugging Face.');
+            } finally {
+                setCargando(false, 'ia');
+            }
+        });
 
-        // --- MODAL INSTANTÁNEO ---
-        function openDownloadModal(videoId, title, author) {
-            const modal = document.getElementById('downloadModal');
-            const content = document.getElementById('modalContent');
-            
-            // 1. Mostrar la ventana al instante
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                content.classList.remove('translate-y-full', 'sm:translate-y-10');
-            }, 10);
+        // DESCARGAR MP3 (Hablando con yt-dlp en Hugging Face)
+        document.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-descargar');
+            if (!btn || btn.disabled) return;
 
-            // 2. Cargar textos e iframe
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalAuthor').innerText = author;
-            document.getElementById('previewIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=0`;
+            const query = btn.getAttribute('data-query');
+            const filename = btn.getAttribute('data-filename');
+            const htmlOriginal = btn.innerHTML;
 
-            // 3. Asignar los enlaces a los botones para que el navegador haga el trabajo al hacer clic
-            document.getElementById('btnAudio').href = `${BACKEND_URL}/api/download-audio?v=${videoId}`;
-            document.getElementById('btnVideo').href = `${BACKEND_URL}/api/download-video?v=${videoId}`;
-        }
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Obteniendo...`;
+            lucide.createIcons();
+            mostrarNotificacion('info', `Descargando: ${filename.replace('.mp3', '')}...`);
 
-        function closeModal() {
-            const modal = document.getElementById('downloadModal');
-            const content = document.getElementById('modalContent');
-            modal.classList.add('opacity-0');
-            content.classList.add('translate-y-full', 'sm:translate-y-10');
-            
-            document.getElementById('previewIframe').src = ''; // Apagar video
-            
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            }, 300);
-        }
-
-        document.getElementById('downloadModal').addEventListener('click', function(e) {
-            if (e.target === this) closeModal();
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/descargar?query=${encodeURIComponent(query)}`);
+                if (!res.ok) throw new Error('Servidor falló');
+                
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                
+                mostrarNotificacion('exito', '¡Descarga iniciada!');
+            } catch (error) {
+                mostrarNotificacion('error', 'Fallo al descargar. Intenta de nuevo.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = htmlOriginal;
+                lucide.createIcons();
+            }
         });
     </script>
 </body>
